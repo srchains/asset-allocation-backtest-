@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "assets": {
+    "NIFTY": {
+      "label": "Nifty 50",
+      "symbol": "NIFTY",
+      "loader": "index",
+      "color": "#3b82f6",
+      "source": "TradeEntry /chart-data NIFTY daily close (price index)"
+    },
+    "GOLD": {
+      "label": "Gold",
+      "symbol": "MCX GOLD (masid 2) + GOLDINR",
+      "loader": "gold_india",
+      "color": "#facc15",
+      "source": "MCX Gold spot from 2005-06-06; before that GOLDINR x matching factor; x 1.03 GST"
+    },
+    "BOND": {
+      "label": "Bond",
+      "symbol": "INDIA_GSEC_COMPOSITE + in_fixed_deposit_rate",
+      "loader": "bond_chained",
+      "color": "#22c55e",
+      "source": "NIFTY Composite G-sec Index from 2015-10-13; before that the SBI FD rate compounded daily"
+    },
+    "CASH": {
+      "label": "Cash",
+      "annual_return_pct": 0,
+      "loader": "fixed_rate",
+      "color": "#a3a3a3",
+      "source": "No price data: annual_return_pct compounded over 252 trading days"
+    }
+  },
+  "allocations": [
+    {
+      "id": "gold_nifty_50_50",
+      "name": "Gold + Nifty",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 50,
+        "GOLD": 50
+      }
+    },
+    {
+      "id": "gold_bond_50_50",
+      "name": "Gold + Bond",
+      "type": "predefined",
+      "weights": {
+        "GOLD": 50,
+        "BOND": 50
+      }
+    },
+    {
+      "id": "bond_nifty_50_50",
+      "name": "Bond + Nifty",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 50,
+        "BOND": 50
+      }
+    },
+    {
+      "id": "classic_60_40",
+      "name": "Classic 60/40",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 60,
+        "BOND": 40
+      }
+    },
+    {
+      "id": "equity_gold_70_30",
+      "name": "Equity + Gold Hedge",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 70,
+        "GOLD": 30
+      }
+    },
+    {
+      "id": "equity_cash_80_20",
+      "name": "Equity + Cash Buffer",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 80,
+        "CASH": 20
+      }
+    },
+    {
+      "id": "equal_weight_4",
+      "name": "Equal Weight",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 25,
+        "GOLD": 25,
+        "BOND": 25,
+        "CASH": 25
+      }
+    },
+    {
+      "id": "balanced_4_asset",
+      "name": "Balanced 4-Asset",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 50,
+        "GOLD": 20,
+        "BOND": 20,
+        "CASH": 10
+      }
+    },
+    {
+      "id": "growth_4_asset",
+      "name": "Growth 4-Asset",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 60,
+        "GOLD": 20,
+        "BOND": 10,
+        "CASH": 10
+      }
+    },
+    {
+      "id": "conservative_4_asset",
+      "name": "Conservative",
+      "type": "predefined",
+      "weights": {
+        "NIFTY": 20,
+        "GOLD": 10,
+        "BOND": 50,
+        "CASH": 20
+      }
+    },
+    {
+      "id": "gold_nifty_copy",
+      "name": "Gold + Nifty (copy)",
+      "type": "custom",
+      "weights": {
+        "NIFTY": 50,
+        "GOLD": 50
+      },
+      "created_at": "2026-10-07T12:46:26+00:00",
+      "updated_at": "2026-10-07T12:46:26+00:00"
+    },
+    {
+      "id": "plan_1",
+      "name": "plan-1",
+      "type": "custom",
+      "weights": {
+        "NIFTY": 26,
+        "GOLD": 30,
+        "BOND": 15,
+        "CASH": 29
+      },
+      "created_at": "2026-10-10T06:08:15+00:00",
+      "updated_at": "2026-10-10T06:08:15+00:00"
+    },
+    {
+      "id": "plan2",
+      "name": "plan2",
+      "type": "custom",
+      "weights": {
+        "NIFTY": 50,
+        "GOLD": 47,
+        "BOND": 3
+      },
+      "created_at": "2026-10-10T06:09:50+00:00",
+      "updated_at": "2026-10-10T06:09:50+00:00"
+    }
+  ]
+}

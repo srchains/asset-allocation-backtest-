@@ -1,0 +1,13 @@
+node_modules/
+__pycache__/
+.pytest_cache/
+web/dist/
+.claude/
+downloads/
+*.zip
+~$*
+.env
+
+# Your own workbooks (not part of the project code)
+Asset_Allocation.xlsx
+Asset_Allocation_Rebalanced.xlsx
