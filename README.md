@@ -145,14 +145,24 @@ TradeEntry API.
 
 ## Running it
 
+Code: https://github.com/srchains/asset-allocation-backtest- (private).
+
+### 0. First time only: install the packages
+
+```bash
+pip install -r requirements.txt
+cd web; npm install
+```
+
 ### 1. Set your TradeEntry API token (every new terminal)
 
 ```bash
-export TRADEENTRY_TOKEN=tat_xxxxxxxx          # bash
-$env:TRADEENTRY_TOKEN = "tat_xxxxxxxx"        # PowerShell
+export TRADEENTRY_TOKEN=tat_xxxxxxxx                        # bash
+$env:TRADEENTRY_TOKEN = Read-Host "TradeEntry token"        # PowerShell (asks for it, paste + Enter)
 ```
 
-The token is only read from the environment; do not put it in a file.
+The token is only read from the environment; do not put it in a file (the repo is on GitHub).
+Closing the terminal forgets it, so set it again in every new window.
 
 ### 2. Everything at once (recommended)
 
@@ -166,11 +176,16 @@ Starts the FastAPI backend on `:8000` and the Vite dev server together
 
 ### Backend and frontend separately
 
+PowerShell window 1 (API), from the project root, after step 1:
+
 ```bash
-uvicorn server:app --reload --port 8000
+python -m uvicorn server:app --port 8000
 ```
+
+PowerShell window 2 (app), then open http://localhost:5173:
+
 ```bash
-cd web && npm run dev
+cd web; npm run dev
 ```
 
 The frontend's Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`
@@ -207,6 +222,13 @@ Pydantic schemas.
 - **Live updates**: every slider drag, period change, or capital edit
   triggers a debounced (200ms) call to `/api/backtest`, with in-flight
   request cancellation so a fast drag doesn't race stale responses.
+- **Tabs** (card tabs with icons): Asset Allocation, Rebalance, Backtester, Saved plans.
+- **Charts** (all use the same line model): a key box at the top-left, one line per asset for
+  100% in that asset, a purple **Inflation** line (what the money needs to grow to just keep up
+  with prices) and a thick pink **My Portfolio** line. Every drawdown chart also has a purple
+  **My Portfolio after inflation** line with its worst fall.
+- **Save as plan** (under the sliders) stores the current weights as a custom allocation; the
+  **Saved plans** tab lists them with *Load in Asset Allocation*, *Open in Backtester* and *Delete*.
 - **Allocation sliders**: Equity/Gold/Bonds/Midcap/Smallcap auto-constrain
   each other so their sum never exceeds 100%; Cash is shown as a read-only
   computed field.
@@ -256,7 +278,9 @@ closes and named allocations. The Asset Allocation page, the Rebalance page and
   each asset's start / end value and contribution, and the rebalance log (weights before → after,
   amounts and Nifty shares / gold grams bought or sold).
 - **Pages**: *Buy & Hold* (allocation dropdown grouped Predefined / Custom, dates, amount; summary
-  cards, equity curve, stacked value per asset, calendar-year table, asset contribution) and
+  cards, one value chart (100% in each asset, Inflation, My Portfolio) with the drawdown chart
+  below it (each asset, My Portfolio after inflation, My Portfolio), calendar-year table, asset
+  contribution) and
   *Rebalancing* (the same plus frequency, number of rebalances, a paginated rebalance log and a
   comparison with buy & hold: side-by-side metrics and both equity curves). *Manage allocations*:
   new (live total, red unless 100), duplicate any, edit / delete custom ones (delete asks first),
@@ -264,7 +288,8 @@ closes and named allocations. The Asset Allocation page, the Rebalance page and
 - **Endpoints**: `GET /api/allocations`, `GET /api/allocations/{id}`, `POST /api/allocations`,
   `PUT /api/allocations/{id}`, `DELETE /api/allocations/{id}`, `POST /api/allocations/{id}/duplicate`,
   `GET /api/allocations/export`, `POST /api/allocations/import`, `GET /api/assets`,
-  `GET /api/assets/ranges`, `POST /api/portfolio-backtest`
+  `GET /api/assets/ranges`, `POST /api/portfolio-backtest` (its `series` also carries `inflation`:
+  the starting amount grown by the API's annual CPI rate, compounded over the calendar days)
   (`{allocation_id | weights, start_date, end_date, initial_amount, rebalance, compare}`;
   `compare: true` also returns the buy & hold run). The old `/api/backtest` is unchanged.
 - Example (Balanced 4-Asset: Nifty 50 / Gold 20 / Bond 20 / Cash 10, ₹1,00,000, 29 Dec 1995 to
