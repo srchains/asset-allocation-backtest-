@@ -79,24 +79,23 @@ def index_closes(symbol):
     return out
 
 
-@lru_cache(maxsize=None)
-def mcx_gold_closes():
-    d = _get("/mcx-chart/spot-chart", masid=MCX_GOLD_MASID, from_date=FIRST_DATE,
-             to_date=LAST_DATE, timeframe="1D")
+def _chart_closes(path, masid, name):
+    """Daily closes of one chart endpoint (MCX spot or global chart) over the full history."""
+    d = _get(path, masid=masid, from_date=FIRST_DATE, to_date=LAST_DATE, timeframe="1D")
     out = _closes(d["data"])
     if not out:
-        raise DataSourceError("TradeEntry returned no MCX gold data.")
+        raise DataSourceError(f"TradeEntry returned no {name} data.")
     return out
+
+
+@lru_cache(maxsize=None)
+def mcx_gold_closes():
+    return _chart_closes("/mcx-chart/spot-chart", MCX_GOLD_MASID, "MCX gold")
 
 
 @lru_cache(maxsize=None)
 def goldinr_closes():
-    d = _get("/global-chart/chart", masid=GOLDINR_MASID, from_date=FIRST_DATE,
-             to_date=LAST_DATE, timeframe="1D")
-    out = _closes(d["data"])
-    if not out:
-        raise DataSourceError("TradeEntry returned no GOLDINR data.")
-    return out
+    return _chart_closes("/global-chart/chart", GOLDINR_MASID, "GOLDINR")
 
 
 @lru_cache(maxsize=None)

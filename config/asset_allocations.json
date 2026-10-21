@@ -130,17 +130,6 @@
       }
     },
     {
-      "id": "gold_nifty_copy",
-      "name": "Gold + Nifty (copy)",
-      "type": "custom",
-      "weights": {
-        "NIFTY": 50,
-        "GOLD": 50
-      },
-      "created_at": "2026-10-07T12:46:26+00:00",
-      "updated_at": "2026-10-07T12:46:26+00:00"
-    },
-    {
       "id": "plan_1",
       "name": "plan-1",
       "type": "custom",

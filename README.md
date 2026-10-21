@@ -2,7 +2,7 @@
 
 Backtests a Nifty (equity) / Gold / Bonds / Midcap / Smallcap / Cash portfolio
 allocation against real historical Indian market data, and compares nominal
-vs. inflation-adjusted returns over any month-to-month period you pick (money in at the Dec 1995 close, returns from 1996-01 up to the last complete month, currently 2026-09).
+vs. inflation-adjusted returns over any month-to-month period you pick (money in at the Dec 1994 close, returns from 1995-01 up to the last complete month, currently 2026-09).
 
 A FastAPI backend runs the calculation over live data from the TradeEntry API; a React +
 TypeScript + Tailwind frontend in `./web` lets you tune the allocation with
@@ -13,7 +13,6 @@ sliders and see results update live.
 ```
 new-aaset/
 ├── api_data.py                    Live TradeEntry API client (Nifty, Midcap, Smallcap, Gold), memory only
-├── scripts/nse_index_history.py   Stand-alone tool to download NSE index history to CSV files (not used by the app)
 ├── tests/                         pytest suite (calculation, data loaders, API)
 ├── docs/                          Project detail document (.docx)
 ├── asset_allocation_backtest.py   CLI tool + shared parsing/backtest logic
@@ -49,8 +48,8 @@ message and the UI shows it.
 | `NIFTY MIDCAP 150`, 2005-04 → | `/chart-data` | Midcap (hidden in the UI) |
 | `NIFTY SMALLCAP 250`, 2005-04 → | `/chart-data` | Smallcap (hidden in the UI) |
 | MCX Gold spot, INR/10g, 2005-06 → | `/mcx-chart/spot-chart` (masid 2) | Gold from 2005-06, × 1.03 GST = India rate |
-| GOLDINR (global gold in INR/10g) | `/global-chart/chart` (masid 6) | its **month-end closes 1995-12 to 2005-05** (Dec 1995 is where the money goes in), multiplied by MCX/GOLDINR on the last trading day of 2005-06 (about 1.028) so it joins MCX with no jump |
-| SBI 1yr–<2yr FD rate, year-end, 1999 → | `/economic-data/series/in_fixed_deposit_rate` | **Bonds 1996–2011** (that year's rate, added once in December; 9.00% applied to 1996–98, 9.25% (2011) to 2012–14) and the Sharpe risk-free rate (gaps interpolated) |
+| GOLDINR (global gold in INR/10g) | `/global-chart/chart` (masid 6) | its **month-end closes 1994-12 to 2005-05** (Dec 1994 is where the money goes in), multiplied by MCX/GOLDINR on the last trading day of 2005-06 (about 1.028) so it joins MCX with no jump |
+| SBI 1yr–<2yr FD rate, year-end, 1994 → | `/economic-data/series/in_fixed_deposit_rate` | **Bonds 1995–2014** (that year's own rate, added once in December) and the Sharpe risk-free rate (gaps interpolated) |
 | India CPI inflation, annual % (`CPI_India_Annual`), 1996 → 2025 | `/economic-data/series/CPI_India_Annual` | **Inflation**, from the API (the API has no 2026 value: **2026 repeats the 2025 rate**; the latest rate is always carried forward to the current year) |
 | NIFTY Composite G-sec Index (`INDIA_GSEC_COMPOSITE`), 2015-10 → | `/economic-data/series/INDIA_GSEC_COMPOSITE` | **Bonds from 2015**: December close ÷ previous December close − 1 (2015 runs from the index's first close, 2015-10-13, to December; the current year runs from the last December close to the last complete month) |
 
@@ -59,25 +58,24 @@ Month-end value = the close of the last trading day in the month.
 There is no `data/` folder any more: the app reads nothing from disk and saves nothing.
 
 **Known gaps**, handled explicitly rather than silently:
-- Backtests run **1996-01 to the last complete month** (currently 2026-09); money goes in at the **Dec-1995 close**. Before 2005-06 Gold uses the chained
+- Backtests run **1995-01 to the last complete month** (currently 2026-09); money goes in at the **Dec-1994 close**. Before 2005-06 Gold uses the chained
   GOLDINR month-end closes; Bonds earn one return per year (Jan–Dec), added in December: the FD rate
-  until 2011 (the SBI year-end rate from the API for 1999–2011; its first
-  value, 9.00%, is applied to 1996–1998), use the 2011 rate (9.25%) for 2012–2014
-  (no data) and follow the G-sec index from 2015; Midcap/Smallcap did not
+  until 2014 (each year's own SBI year-end rate from the API, 1995–2014)
+  and follow the G-sec index from 2015; inflation for 1995 repeats the 1996 rate; Midcap/Smallcap did not
   exist yet, so they hold flat (0%) until 2005-04.
 - The API's Midcap/Smallcap series are continuous;
   `monthly_returns_adjacent_only()` still guards against any future gap.
-- The usable range is where every series has data: 1996-01 to the last complete month; the current, incomplete month is not used.
+- The usable range is where every series has data: 1995-01 to the last complete month; the current, incomplete month is not used.
 - The FD rate used for the Sharpe risk-free rate is the SBI series with the
   missing years (2012–2018, 2020–2022) filled by linear interpolation.
 
 ## How the calculation works
 
-**The UI shows monthly data** (every month-end from 1996-01 up to the last complete month,
-currently 2026-09; money goes in at the Dec-1995 close). Money is put in at the month-end before the first month and held; each
+**The UI shows monthly data** (every month-end from 1995-01 up to the last complete month,
+currently 2026-09; money goes in at the Dec-1994 close). Money is put in at the month-end before the first month and held; each
 month is one step. The API can also value everything at December closes only
 (`frequency: "yearly"`, `to_annual()` in `asset_allocation_backtest.py`; one step per year,
-Dec to Dec, 1996-2025, buying at the Dec-1995 close). With the same buy date and no rebalancing the two
+Dec to Dec, 1995-2025, buying at the Dec-1994 close). With the same buy date and no rebalancing the two
 give identical values at every December (checked by a test). The December-only option was removed from the UI.
 
 - Nifty, Gold (and Midcap/Smallcap): the return of a month = month-end close / previous month-end close - 1.
@@ -99,9 +97,8 @@ give identical values at every December (checked by a test). The December-only o
   interpolated between 2020-03-19 and 2020-06-03 (₹4,471 / 4,768 / 4,962 per gram incl. GST instead of 4,222).
   Only those three months change; no December value, no final value, and the maximum drawdown stay the same.
   (Gold from the daily MCX series, converted from ₹/10g to ₹/gram and × 1.03 GST).
-- **Bonds**: until 2011 a year earns the SBI year-end FD rate from the API
-  (its first value, 9.00%, is applied to 1996–98); 2012–2014 use the 2011 rate
-  (9.25%) because there is no data; from 2015 the year's return is the move of the
+- **Bonds**: until 2014 a year earns its own SBI year-end FD rate from the API
+  (1995–2014); from 2015 the year's return is the move of the
   NIFTY Composite G-sec Index (December close ÷ previous December close − 1; the
   index starts on 2015-10-13, so the 2015 return is only about 0.6%).
 - **Cash**: hand cash — no interest, so it stays at the amount you put in.
@@ -207,7 +204,7 @@ for all options.
 
 | Endpoint | Method | Body | Returns |
 |---|---|---|---|
-| `/api/range` | GET | — | `{min, max, yearly_max}` — the first and last month all data sources cover (`1996-01`, last complete month), and the last December (`yearly_max`) |
+| `/api/range` | GET | — | `{min, max, yearly_max, …}` — the first and last month all data sources cover (`1995-01`, last complete month), and the last December (`yearly_max`) |
 | `/api/backtest` | POST | `{capital, equity, gold, bonds, midcap, smallcap, start, end, rebalance, tolerance, frequency}` | One `row` per December (`periods_per_year` = 1) or per month (12), `buy_period` = the period the money goes in, `clamped_start`/`clamped_end`, `cash_pct` |
 
 `equity`, `gold`, `bonds`, `midcap`, `smallcap` are percentages (0–100);
@@ -222,26 +219,35 @@ Pydantic schemas.
 - **Live updates**: every slider drag, period change, or capital edit
   triggers a debounced (200ms) call to `/api/backtest`, with in-flight
   request cancellation so a fast drag doesn't race stale responses.
-- **Tabs** (card tabs with icons): Asset Allocation, Rebalance, Backtester, Saved plans.
+- **Tabs** (card tabs with icons): Asset Allocation, Rebalance, Comparison chart.
 - **Charts** (all use the same line model): a key box at the top-left, one line per asset for
   100% in that asset, a purple **Inflation** line (what the money needs to grow to just keep up
   with prices) and a thick pink **My Portfolio** line. Every drawdown chart also has a purple
   **My Portfolio after inflation** line with its worst fall.
-- **Save as plan** (under the sliders) stores the current weights as a custom allocation; the
-  **Saved plans** tab lists them with *Load in Asset Allocation*, *Open in Backtester* and *Delete*.
+- **Save as plan** (under the sliders) stores the current weights as a custom allocation. **Open plan**
+  (button above the sliders) lists every plan (yours first, then the predefined ones) and loads the
+  one you click into the sliders (Cash = the rest). Edit / delete plans under *Manage allocations*.
+- **Log scale** checkbox on the value charts (Asset Allocation and Comparison chart). Unticked = the
+  normal rupee axis; ticked = log axis (ticks at 1, 2, 5 x 10^n), where the same % growth has the same
+  height: a straight line is steady yearly growth, a steeper line is faster growth. It only changes
+  how the chart is drawn, not any number. Your choice is remembered.
 - **Allocation sliders**: Equity/Gold/Bonds/Midcap/Smallcap auto-constrain
   each other so their sum never exceeds 100%; Cash is shown as a read-only
   computed field.
 - **Download buttons** (Excel `.xlsx` or PDF, from a "Download" dropdown on the
   section header; generated in the browser with `write-excel-file`, `jspdf` and
   `jspdf-autotable`, code in `web/src/exportYearly.ts`):
-  - *Year by year* (main page): the "1995 Dec close (buy)" row (amounts, Nifty shares / gold grams bought and the
-    closing price they were bought at: Nifty 909.00, Gold ₹462.42/g), and every
-    year-end row; file `year-by-year_<start>_<end>`.
-  - *Year by year (with rebalancing)* (Rebalance page): per year and asset the amount at
-    the December close, buy / sell Rs, Nifty shares / gold grams bought or sold and held
-    after, plus the portfolio, return, inflation, after inflation and average per year;
-    file `..._year-by-year`.
+  Both files use one structure: a merged, coloured group row (NIFTY, GOLD, BONDS, CASH, PORTFOLIO, RETURNS)
+  over the columns. For each asset its **price** (December close; gold in Rs per gram), the **quantity**
+  held (Nifty shares, gold grams) and the **value** (qty x price); Bonds show the year's return and the
+  value; Cash its value; then the portfolio value and the return, inflation, after-inflation and
+  average-per-year columns. A first row "1995 Dec close (buy)" shows what was bought; notes under the table
+  explain the columns. The header rows and the Year column stay frozen in Excel.
+  - *Year by year* (main page): quantities are the shares / grams bought once and held; file
+    `year-by-year_<start>_<end>`.
+  - *Year by year (with rebalancing)* (Rebalance page): quantity and value after each December review, plus a
+    Rebalanced column. The Excel has a second sheet "Buy and sell" (amount at the close, buy / sell Rs, shares /
+    grams bought or sold and held after); the PDF has it as a second table on its own page.
   Rupee values have no decimals; the PDF writes `Rs` instead of the rupee
   sign because the standard PDF fonts have no rupee glyph.
 
@@ -261,17 +267,17 @@ closes and named allocations. The Asset Allocation page, the Rebalance page and
 - **Assets** (config `loader`, see `daily_data.py`):
   NIFTY = `NIFTY` price index (1991 →, Budget-day 1997 fix);
   GOLD = ₹/gram India rate: MCX Gold spot from 2005-06-06 (the frozen 2020 days replaced by the
-  global-gold estimate) and before that GOLDINR × the matching factor, from 1995-12-01, × 1.03 GST;
+  global-gold estimate) and before that GOLDINR × the matching factor, from 1994-12-01, × 1.03 GST;
   BOND = NIFTY Composite G-sec Index from 2015-10-13 and, before that, the SBI FD rate spread over
-  each year's weekdays (9.00% for 1996–98, the 2011 rate for 2012–14, flat in 2015 until the index
-  starts), from 1995-12-29; CASH = `annual_return_pct` (default 0) compounded over 252 trading days.
+  each year's weekdays (each year's own rate, flat in 2015 until the index
+  starts), from 1994-12-30; CASH = `annual_return_pct` (default 0) compounded over 252 trading days.
   A new asset = a config entry (and a loader in `LOADERS` if none fits).
 - **Engine** (`backtest_engine.run_backtest(allocation, start, end, amount, rebalance)`,
-  rebalance `none` / `monthly` / `quarterly` / `yearly`): dates are the union of the assets'
+  rebalance `none` / `quarterly` / `halfyearly` / `yearly`; the API also takes `monthly`): dates are the union of the assets'
   trading days (weekdays); a missing price is carried forward for at most 5 days, otherwise the
   date is left out and logged; an asset with no data at the start gives an error with the earliest
   common date. Day 1 buys fractional units; when rebalancing, every holding is reset to its target
-  on the first trading day of each new month / quarter (Jan, Apr, Jul, Oct) / year. Cost hook
+  on the first trading day of each new month / quarter (Jan, Apr, Jul, Oct) / half year (Jan, Jul) / year. Cost hook
   `cost_pct` (default 0). Output: daily equity curve and value per asset, final value, total return,
   CAGR = (final / initial)^(365 / days) − 1, max drawdown with its peak / trough / recovery dates,
   volatility = stdev of daily returns × √252, calendar-year returns with the best and worst year,
@@ -314,7 +320,7 @@ complete month (2026-09; money goes in at the December 1995 close).
 | Monthly | The main calculation, one row per month: growth x, Rs values, portfolio, after inflation, drawdown, the 100%-in-one-asset lines |
 | Year by year | First row **1995 Dec** = what you bought at the Dec 1995 close; then the December value of each year 1996-2026 (2026: the last month), return, inflation, average per year |
 | Asset tracker | First row **1995 Dec** = the Dec 1995 closing price, shares / grams bought and value; then per year (1996 Dec ... 2026 Sep) and asset (Nifty, Gold, Bonds, Cash): price, shares / grams bought, value, target value, buy / sell, annual return, peak, drawdown, CAGR; plus the portfolio totals |
-| Rebalance year by year | The app's Rebalance page table with live formulas. Tolerance cell B2 (default 5 points, same as the app; 0 = every year). Rows: 1995 Dec close (buy), every December 1996-2025, 2026 Sep. Per asset: Rs at the December close, Nifty shares / gold grams held, the price, shares / grams bought (+) / sold (-) at that price, buy / sell Rs, Rs after and shares / grams after (Bonds and Cash: Rs, buy / sell, after); then the portfolio, rebalanced yes/no, return, inflation, after inflation, average per year, the value without rebalancing and the difference; a summary below (final values, years rebalanced, shares / grams held, bought and sold) |
+| Rebalance year by year | The app's Rebalance page table with live formulas. Tolerance cell B2 (default 5 points; 0 = every year, which is the app's default). Rows: 1995 Dec close (buy), every December 1996-2025, 2026 Sep. Per asset: Rs at the December close, Nifty shares / gold grams held, the price, shares / grams bought (+) / sold (-) at that price, buy / sell Rs, Rs after and shares / grams after (Bonds and Cash: Rs, buy / sell, after); then the portfolio, rebalanced yes/no, return, inflation, after inflation, average per year, the value without rebalancing and the difference; a summary below (final values, years rebalanced, shares / grams held, bought and sold) |
 | Year-end comparison | Every December (and the last complete month): value with buy & hold, value with rebalancing, the difference and the action (Rebalanced / Within band); follows the tolerance in `Rebalance year by year`!B2 |
 | Bonds calculation | The Bonds return of each year worked out step by step, the month it is added in (December; 2026: the last complete month), Bonds x, value for 100% Bonds and for your Bonds % |
 | Gold 1995-2005 | The GOLDINR month-end closes x matching factor (MCX / GOLDINR on 2005-06-30) for every month 1995-12 to 2005-05 |

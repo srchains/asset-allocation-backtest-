@@ -63,15 +63,31 @@ export interface BacktestResult {
 export interface DataRange {
   min: string;
   max: string;
+  data_through?: string;   // the newest day the API has data for
+  last_close?: string;     // the close (last trading day) of the last complete month, used for "as of now"
+  latest?: { nifty: number; nifty_date: string; gold: number; gold_date: string };   // newest prices
 }
 
-export async function fetchRange(): Promise<DataRange> {
-  const res = await fetch("/api/range");
+async function fetchRangeOnce(): Promise<DataRange> {
+  const res = await fetch("/api/range", { signal: AbortSignal.timeout(15000) });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(typeof body.detail === "string" ? body.detail : `Failed to fetch data range: ${res.status}`);
   }
   return res.json();
+}
+
+/** The data range, retried a few times (the backend may still be starting or loading the API
+ *  data), so the page doesn't stay on "Loading" forever after one failed or stuck request. */
+export async function fetchRange(tries = 5): Promise<DataRange> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fetchRangeOnce();
+    } catch (e) {
+      if (i >= tries) throw e instanceof Error && e.name === "TimeoutError" ? new Error("The backend did not answer (timed out). Is it running?") : e;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
 }
 
 interface RiskMetricsWire {

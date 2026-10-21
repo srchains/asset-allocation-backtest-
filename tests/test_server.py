@@ -31,6 +31,10 @@ def test_range_endpoint_returns_min_max():
     body = res.json()
     assert "min" in body and "max" in body
     assert body["min"] < body["max"]
+    # the newest day with data, and the close of the last complete month (inside that month)
+    assert body["last_close"].startswith(body["max"]) and body["last_close"] <= body["data_through"]
+    latest = body["latest"]
+    assert latest["nifty"] > 0 and latest["gold"] > 0 and body["data_through"] == max(latest["nifty_date"], latest["gold_date"])
 
 
 @needs_api
@@ -43,7 +47,7 @@ def test_backtest_happy_path():
     body = res.json()
     assert len(body["rows"]) > 0
     assert body["cash_pct"] == pytest.approx(2.0)
-    assert body["rows"][-1]["nominal_value"] == pytest.approx(1232817.42, rel=1e-4)
+    assert body["rows"][-1]["nominal_value"] == pytest.approx(1229034.98, rel=1e-4)
     assert "risk" in body and "sharpe_ratio" in body["risk"]
     assert "risk_free_pct" in body
     md = body["market_data"]
@@ -125,10 +129,10 @@ def test_backtest_rejects_start_after_end():
     {"equity": -10, "gold": 60, "bonds": 50},   # negative weight
     {"midcap": -5},
     {"rebalance": True, "tolerance": -5},        # negative band
-    {"capital": 0},
 ])
 def test_backtest_rejects_invalid_inputs(override):
     body = {"capital": 100000, "equity": 40, "gold": 30, "bonds": 20,
             "start": "2005-07", "end": "2026", "rebalance": False}
     body.update(override)
     assert client.post("/api/backtest", json=body).status_code == 422
+

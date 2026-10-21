@@ -20,63 +20,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 
 from asset_allocation_backtest import (
-    first_number, year_key, interpolate_gaps, parse_period, month_range,
+    interpolate_gaps, parse_period, month_range,
     monthly_returns_from_levels, monthly_rate_from_annual,
     simulate, compute_risk_metrics, weighted_average_rate,
     load_all_data, usable_months, market_data, previous_month, to_annual, previous_period,
     mcx_gold_fixes, bonds_monthly_returns, last_complete_month,
 )
-
-
-# ---------- first_number() ----------
-
-class TestFirstNumber:
-    def test_none_input(self):
-        assert first_number(None) is None
-
-    def test_plain_na(self):
-        assert first_number("N/A") is None
-
-    def test_simple_decimal(self):
-        assert first_number("6.70") == 6.70
-
-    def test_avg_pattern_preferred(self):
-        assert first_number("8.5 - 10.5 (avg. 9.5)") == 9.5
-
-    def test_range_with_tenure_and_date_not_mistaken_for_rate(self):
-        # Bug: "1-yr" and "10-Oct-2019" contain digits that could be
-        # mistaken for the rate if the parser doesn't prefer decimals.
-        assert first_number("~6.70-6.80 (1 yr-<2 yrs, cut 10-Oct-2019)") == 6.70
-
-    def test_embedded_year_not_mistaken_for_rate(self):
-        # Bug: "2013" and "2026" are 4-digit numbers that look like values
-        # but are actually years/dates embedded in descriptive text.
-        assert first_number("N/A (WADTDR series begins Mar-2013)") is None
-        result = first_number("N/A - RBI's latest 2026 figure not retrieved; SBI's rate is ~6.80%")
-        assert result == 6.80
-
-    def test_out_of_bounds_rejected(self):
-        # A bare 4-digit year with no valid decimal rate anywhere in the
-        # string should not fall back to returning the year itself.
-        assert first_number("As of Mar-2013") is None
-
-    def test_multiple_dated_rates_picks_first(self):
-        text = "5.90 (Jan-2023) -> 6.28 (Apr-2023) -> 6.78 (Nov-2023)"
-        assert first_number(text) == 5.90
-
-
-# ---------- year_key() ----------
-
-class TestYearKey:
-    def test_plain_year(self):
-        assert year_key("2011") == 2011
-
-    def test_year_with_suffix(self):
-        assert year_key("2011 (as of Mar-2011)") == 2011
-        assert year_key("2026 (YTD, as of latest available)") == 2026
-
-    def test_no_leading_year(self):
-        assert year_key("Methodology & Notes") is None
 
 
 # ---------- interpolate_gaps() ----------
@@ -450,7 +399,7 @@ class TestFrozenGoldFix:
 # ---------- Bonds returns across a year change ----------
 
 class TestBondsAcrossYears:
-    SBI = {y: 9.0 if y == 1999 else 8.0 for y in range(1999, 2012)} | {2019: 6.8, 2025: 6.25}
+    SBI = {y: 9.0 if y == 1999 else 8.0 for y in range(1994, 2026)}
 
     @staticmethod
     def _gsec(last_date, last_value):
@@ -474,8 +423,10 @@ class TestBondsAcrossYears:
         assert r[(2026, 6)] == 0.0 and r[(2026, 12)] == pytest.approx(0.05)     # booked once, in December
         assert r[(2027, 1)] == pytest.approx(0.01)                      # Dec 2026 close -> Jan 2027 close
         assert (2027, 2) not in r                                       # February is not complete
-        assert r[(1997, 5)] == 0.0 and r[(1997, 12)] == pytest.approx(0.09)    # first SBI value before 1999
-        assert r[(2013, 12)] == pytest.approx(0.08)                             # 2011 rate for 2012-2014
+        assert r[(1997, 5)] == 0.0 and r[(1997, 12)] == pytest.approx(0.08)    # that year's SBI rate
+        assert r[(1999, 12)] == pytest.approx(0.09)
+        assert r[(2013, 12)] == pytest.approx(0.08)                             # FD up to 2014
+        assert r[(2015, 12)] == pytest.approx(0.05)                             # then the G-sec index
 
 
 # ---------- Integration: real data, regression guard ----------
@@ -509,9 +460,9 @@ class TestRealDataIntegration:
         months = usable_months(data, "2005-07", "2025-12")
         weights = {"equity": 32, "gold": 32, "bonds": 34, "midcap": 0, "smallcap": 0, "cash": 2}
         rows = simulate(data, 100000, weights, months, rebalance=False)
-        assert rows[-1]["nominal_value"] == pytest.approx(1210237.61, rel=1e-4)
+        assert rows[-1]["nominal_value"] == pytest.approx(1206455.15, rel=1e-4)
         # Uses World Bank CPI inflation.
-        assert rows[-1]["real_value"] == pytest.approx(335697.85, rel=1e-4)
+        assert rows[-1]["real_value"] == pytest.approx(334648.66, rel=1e-4)
 
     def test_budget_day_1997_close_is_corrected(self, data):
         # The API labels the real 28 Feb 1997 close (1053.55, +6% on Budget day) as 1997-03-01
@@ -539,28 +490,28 @@ class TestRealDataIntegration:
         # not an accidentally-matched year/day-of-month/tenure number.
         for year, rate in data["fd"].items():
             assert 0 <= rate <= 20, f"Implausible FD rate {rate}% for {year}"
-        assert data["fd"][1996] == pytest.approx(9.0)          # before the SBI series: its first value
-        assert data["fd"][2015] == pytest.approx(9.25 + (6.7 - 9.25) * 4 / 8)  # between 2011 and 2019
+        assert data["fd"][1996] == pytest.approx(12.0)         # the SBI series starts at the end of 1994
+        assert data["fd"][2015] == pytest.approx(7.3)
 
     def test_all_inflation_rates_are_plausible_percentages(self, data):
         for year, rate in data["inflation"].items():
             assert -5 <= rate <= 25, f"Implausible inflation rate {rate}% for {year}"
 
     def test_bonds_follow_sbi_rates_until_2011(self, data):
-        # 1996-1998: the SBI series' first value (9.00%) applied; 1999-2011: SBI year-end rate (API).
+        # SBI year-end rate of each year (API, from 1994).
         # The whole year's return is booked in December; the other months are 0%.
         r = data["bonds_ret"]
-        assert r[(1996, 6)] == 0.0 and r[(1996, 12)] == pytest.approx(0.09)
-        assert r[(1998, 12)] == pytest.approx(0.09)
+        assert r[(1996, 6)] == 0.0 and r[(1996, 12)] == pytest.approx(0.12)
+        assert r[(1998, 12)] == pytest.approx(0.105)
         assert r[(2001, 12)] == pytest.approx(0.0775)
         assert r[(2005, 3)] == 0.0 and r[(2005, 12)] == pytest.approx(0.055)
         assert r[(2008, 12)] == pytest.approx(0.0875)
         assert r[(2011, 12)] == pytest.approx(0.0925)
 
-    def test_bonds_2012_2014_use_the_2011_sbi_rate_and_2015_the_gsec_index(self, data):
+    def test_bonds_2012_2014_use_their_own_sbi_rate_and_2015_the_gsec_index(self, data):
         import api_data
-        for y in (2012, 2013, 2014):
-            assert data["bonds_ret"][(y, 6)] == 0.0 and data["bonds_ret"][(y, 12)] == pytest.approx(0.0925)
+        for y, rate in ((2012, 0.085), (2013, 0.085), (2014, 0.08)):
+            assert data["bonds_ret"][(y, 6)] == 0.0 and data["bonds_ret"][(y, 12)] == pytest.approx(rate)
         series = api_data.economic_series("INDIA_GSEC_COMPOSITE")
         first_2015 = series[min(d for d in series if d.startswith("2015"))]
         dec_2015 = series[max(d for d in series if d.startswith("2015"))]
@@ -578,7 +529,8 @@ class TestRealDataIntegration:
 
     def test_inflation_only_from_api(self, data):
         infl = data["inflation"]
-        assert min(infl) == 1996 and max(infl) == 2026   # 1996-2025 from the API, 2026 carried forward
+        assert min(infl) == 1995 and max(infl) == 2026   # 1996-2025 from the API, 1995 and 2026 carried over
+        assert infl[1995] == infl[1996]
         assert infl[2026] == infl[2025]
         assert 3 < infl[2005] < 5
         assert infl[1999] == pytest.approx(4.67)
@@ -613,5 +565,5 @@ class TestRealDataIntegration:
     def test_usable_months_clamped_to_gold_start(self, data):
         months = usable_months(data, "1990-01", "2026-12")
         # Inflation from the API starts in 1996 (1995 repeats it); the data runs to the last complete month.
-        # Money goes in at the Dec-1995 close, so the first return month is 1996-01.
-        assert months[0] == (1996, 1) and months[-1] >= (2026, 1)
+        # Money goes in at the Dec-1994 close, so the first return month is 1995-01.
+        assert months[0] == (1995, 1) and months[-1] >= (2026, 1)

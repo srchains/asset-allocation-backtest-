@@ -2,12 +2,12 @@
 Daily backtest engine shared by the Buy & Hold and Rebalancing pages.
 
     run_backtest(allocation, start_date, end_date, initial_amount, rebalance)
-        rebalance: "none" | "monthly" | "quarterly" | "yearly"
+        rebalance: "none" | "monthly" | "quarterly" | "halfyearly" | "yearly"
 
 Day 1 splits initial_amount by the weights and buys fractional units at that day's
 close. Every day the value is sum(units x price) plus the cash balance, which grows
 at annual_return_pct compounded over 252 trading days. When rebalancing, on the
-first trading day of each new month / quarter (Jan, Apr, Jul, Oct) / year every
+first trading day of each new month / quarter (Jan, Apr, Jul, Oct) / half year (Jan, Jul) / year every
 holding is reset to its target weight at that day's prices. Transaction costs are
 a hook (cost_pct of the traded value, default 0).
 
@@ -18,11 +18,11 @@ Prices come from daily_data.py (live API) unless a `prices` dict is passed in
 import bisect
 import math
 import statistics
-from datetime import date, timedelta
+from datetime import date
 
 TRADING_DAYS = 252
 MAX_FILL_DAYS = 5
-REBALANCE_CHOICES = ("none", "monthly", "quarterly", "yearly")
+REBALANCE_CHOICES = ("none", "monthly", "quarterly", "halfyearly", "yearly")
 
 
 class BacktestError(ValueError):
@@ -39,6 +39,8 @@ def _period_key(d, rebalance):
         return (y, m)
     if rebalance == "quarterly":
         return (y, (m - 1) // 3)
+    if rebalance == "halfyearly":
+        return (y, (m - 1) // 6)
     return (y,)
 
 
@@ -140,7 +142,6 @@ def run_backtest(allocation, start_date, end_date, initial_amount=100000.0, reba
         raise BacktestError("No trading days with data for all assets in this period.")
 
     # ---- simulation
-    cash_w = sum(weights[a] for a in fixed)
     cash_rate = {a: (1 + float((assets.get(a) or {}).get("annual_return_pct", 0)) / 100) ** (1 / TRADING_DAYS) - 1
                  for a in fixed}
     units = {a: initial_amount * weights[a] / 100 / px[a][0] for a in priced}

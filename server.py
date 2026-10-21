@@ -25,7 +25,7 @@ from api_data import DataSourceError
 from asset_allocation_backtest import (
     load_all_data, usable_months, simulate, compute_risk_metrics,
     weighted_average_rate, parse_period, market_data, previous_period, level_at_or_first, to_annual,
-    load_inflation,
+    load_inflation, load_nifty_daily, load_mcx_daily, GOLD_GST,
 )
 
 app = FastAPI(title="Asset Allocation Backtest API")
@@ -44,13 +44,29 @@ _STATE = {}
 _LOCK = threading.Lock()   # the Rebalance page sends two requests at once: load the data only once
 
 
+def _data_dates(last_month):
+    """Dates for the UI: the newest day the API has any price for (Nifty or gold), and the close (last trading day) of the
+    last complete month that the calculations use. Taken from the daily Nifty closes (already loaded)."""
+    closes = load_nifty_daily()
+    prefix = f"{last_month[0]}-{last_month[1]:02d}"
+    in_month = [d for d in closes if d.startswith(prefix)]
+    mcx = load_mcx_daily()
+    gold_date = max(mcx)
+    return {
+        "data_through": max(max(closes), gold_date), "last_close": max(in_month) if in_month else None,
+        # newest prices, for the "use latest prices" view: Nifty close and gold in INR per gram (India rate)
+        "latest": {"nifty": closes[max(closes)], "nifty_date": max(closes),
+                   "gold": mcx[gold_date] / 10 * GOLD_GST, "gold_date": gold_date},
+    }
+
+
 def get_data():
     """Load every series (live from the TradeEntry API, memory only). The data is
-    loaded again when a new calendar month starts, so the last complete month moves
-    on without restarting the server; if that reload fails the old data is kept."""
-    month = date.today().strftime("%Y-%m")
+    loaded again when a new day starts, so the newest prices (and, in a new month, the last complete
+    month) move on without restarting the server; if that reload fails the old data is kept."""
+    today = date.today().isoformat()
     with _LOCK:
-        if _STATE.get("loaded_month") != month:
+        if _STATE.get("loaded_day") != today:
             try:
                 if "data" in _STATE:
                     api_data.clear_cache()
@@ -65,10 +81,11 @@ def get_data():
                 _STATE.update(
                     monthly=data,
                     data=annual,
-                    loaded_month=month,
+                    loaded_day=today,
                     min=f"{months[0][0]}-{months[0][1]:02d}",
                     max=f"{months[-1][0]}-{months[-1][1]:02d}",  # last complete month
                     yearly_max=f"{steps[-1][0]}-12",              # last December
+                    **_data_dates(months[-1]),
                 )
     return _STATE["data"]
 
@@ -157,7 +174,8 @@ class BacktestResponse(BaseModel):
 @app.get("/api/range")
 def get_range():
     get_data()
-    return {"min": _STATE["min"], "max": _STATE["max"], "yearly_max": _STATE["yearly_max"]}
+    return {"min": _STATE["min"], "max": _STATE["max"], "yearly_max": _STATE["yearly_max"],
+            "data_through": _STATE["data_through"], "last_close": _STATE["last_close"], "latest": _STATE["latest"]}
 
 
 @app.post("/api/backtest", response_model=BacktestResponse)
@@ -242,12 +260,12 @@ def _store(fn, *args):
 
 
 def _daily_refresh():
-    """Fetch the daily series again once a new calendar month starts (like get_data())."""
-    month = date.today().strftime("%Y-%m")
-    if _DAILY["month"] != month:
+    """Fetch the daily series again once a new day starts (like get_data())."""
+    today = date.today().isoformat()
+    if _DAILY["month"] != today:
         if _DAILY["month"] is not None:
             daily_data.clear_cache()
-        _DAILY["month"] = month
+        _DAILY["month"] = today
 
 
 class AllocationIn(BaseModel):
@@ -265,7 +283,7 @@ class PortfolioBacktestRequest(BaseModel):
     start_date: str
     end_date: str
     initial_amount: float = Field(default=100000, gt=0)
-    rebalance: Literal["none", "monthly", "quarterly", "yearly"] = "none"
+    rebalance: Literal["none", "monthly", "quarterly", "halfyearly", "yearly"] = "none"
     compare: bool = False          # also run the same allocation with rebalance = "none"
     cost_pct: float = Field(default=0, ge=0, le=10)
 

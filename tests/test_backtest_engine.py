@@ -1,12 +1,14 @@
 """Tests for backtest_engine.py (synthetic prices) and daily_data.py (live API, needs the token)."""
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
+
+from _helpers import weekdays
 
 from backtest_engine import run_backtest, align_prices, BacktestError, TRADING_DAYS
 from daily_data import DailySeries
@@ -15,15 +17,6 @@ ASSETS = {
     "NIFTY": {"loader": "index"}, "GOLD": {"loader": "gold_india"}, "BOND": {"loader": "bond_chained"},
     "CASH": {"loader": "fixed_rate", "annual_return_pct": 0},
 }
-
-
-def weekdays(start, end, skip=()):
-    d, out = date.fromisoformat(start), []
-    while d <= date.fromisoformat(end):
-        if d.weekday() < 5 and d.isoformat() not in skip:
-            out.append(d.isoformat())
-        d += timedelta(days=1)
-    return out
 
 
 def series(days, start_price=100.0, daily=0.0005, wiggle=0.0):
@@ -70,6 +63,7 @@ class TestEngine:
     @pytest.mark.parametrize("freq,expected_first", [
         ("monthly", ["2020-02-03", "2020-03-02", "2020-04-02", "2020-05-01"]),     # 2020-04-01 is a holiday
         ("quarterly", ["2020-04-02", "2020-07-01", "2020-10-01", "2021-01-04"]),   # 2021-01-01 holiday, 02-03 weekend
+        ("halfyearly", ["2020-07-01", "2021-01-04", "2021-07-01", "2022-01-03"]),  # first trading day of Jan / Jul
         ("yearly", ["2021-01-04", "2022-01-03"]),
     ])
     def test_rebalance_on_first_trading_day_of_each_period(self, market, freq, expected_first):
@@ -81,7 +75,7 @@ class TestEngine:
             prev = [x for x in market[0] if x < d][-1]
             assert d in trading and prev[:7] != d[:7]                 # first trading day of a new month
         assert r["rebalance_count"] == len(dates)
-        assert {"monthly": 35, "quarterly": 11, "yearly": 2}[freq] == len(dates)
+        assert {"monthly": 35, "quarterly": 11, "halfyearly": 5, "yearly": 2}[freq] == len(dates)
 
     def test_rebalance_resets_weights_and_logs_units(self, market):
         r = run(market, {"NIFTY": 50, "GOLD": 50}, "yearly")
@@ -175,11 +169,11 @@ class TestRealData:
         nifty = daily_data.load_asset("NIFTY", DEFAULT_ASSETS["NIFTY"]).prices
         bond = daily_data.load_asset("BOND", DEFAULT_ASSETS["BOND"]).prices
         last = lambda s, ym: s[max(k for k in s if k.startswith(ym))]
-        for y in (1995, 2000, 2004, 2010, 2020, 2025):
+        for y in (1994, 1995, 2000, 2004, 2010, 2020, 2025):
             assert last(gold, f"{y}-12") == pytest.approx(d["gold_level"][(y, 12)])
             assert last(nifty, f"{y}-12") == pytest.approx(d["nifty_level"][(y, 12)])
         bx = 1.0
-        for y in range(1996, 2026):
+        for y in range(1995, 2026):
             for m in range(1, 13):
                 bx *= 1 + d["bonds_ret"][(y, m)]
             assert last(bond, f"{y}-12") == pytest.approx(bx, rel=1e-9)

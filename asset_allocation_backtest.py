@@ -5,10 +5,10 @@ Cash (hand cash, 0% return) vs Inflation.
 Data sources: everything comes live from the TradeEntry API (api_data.py, token in
 the TRADEENTRY_TOKEN environment variable); nothing is read from or saved to disk:
   - Nifty 50, NIFTY Midcap 150, NIFTY Smallcap 250 : daily closes
-  - MCX Gold spot (INR per 10g, 2005-06 on) and GOLDINR December closes (1995-2004), x1.03 GST
-  - SBI 1-2yr FD year-end rate (Bonds 1996-2011; 9.00% applied to 1996-98, 9.25% to 2012-14)
+  - MCX Gold spot (INR per 10g, 2005-06 on) and GOLDINR month-end closes (1994-12 to 2005-05), x1.03 GST
+  - SBI 1-2yr FD year-end rate (Bonds 1995-2014, each year's own rate)
   - NIFTY Composite G-sec Index (Bonds from 2015)
-  - India CPI inflation (annual %, 1996-2025; 2026 repeats the 2025 rate)
+  - India CPI inflation (annual %, 1996-2025; 1995 repeats 1996, 2026 repeats 2025)
 
 The app (server.py, web/) works month by month: the money goes in at the month-end
 close before the Start month and every month-end is one step. This CLI values
@@ -16,14 +16,13 @@ everything at December closes only (to_annual()): one step per year, Dec -> Dec.
 --start/--end take "YYYY" (or "YYYY-MM"); the money is put in at the December before
 the first year that falls in the range.
 
-Bonds: until 2011 a year earns the SBI FD rate (9.00% for 1996-98); 2012-14 use the
-2011 rate (9.25%); from 2015 the year's return is the move of the NIFTY Composite
+Bonds: until 2014 a year earns its own SBI FD year-end rate; from 2015 the year's return is the move of the NIFTY Composite
 G-sec Index. Inflation is the year's annual CPI rate. Nifty and Gold use their
 own real December closes, so their yearly returns are the actual Dec-to-Dec moves.
 
 Known data gaps (see notes printed at runtime):
-  - The backtest range is clamped to the months every series covers: money goes in at the Dec-1995
-    close and the returns run from 1996-01 to the last complete month (inflation for 2026 repeats the 2025 rate).
+  - The backtest range is clamped to the months every series covers: money goes in at the Dec-1994
+    close and the returns run from 1995-01 to the last complete month (inflation for 2026 repeats the 2025 rate).
     Midcap/Smallcap only start in 2005-04 and are held flat (0%) before that.
   - Any remaining N/A years in the rate tables are filled by linear
     interpolation between the nearest known years.
@@ -42,39 +41,6 @@ import api_data
 
 
 # ---------- helpers ----------
-
-def first_number(text):
-    """Extract the first plausible rate value (0-100) from a messy cell,
-    preferring an explicit 'avg. X' figure, then the first DECIMAL number
-    (real rates in this dataset are always written with decimals, e.g.
-    6.80, 8.3), falling back to a bare integer only if no decimal exists.
-    This avoids false matches on years ('Mar-2013'), tenures ('1-yr'),
-    or day-of-month ('10-Oct-2019')."""
-    if text is None:
-        return None
-    m = re.search(r"avg\.?\s*([\d.]+)", text, re.IGNORECASE)
-    if m:
-        val = float(m.group(1))
-        if 0 <= val <= 100:
-            return val
-    for m in re.finditer(r"\d+\.\d+", text):
-        val = float(m.group(0))
-        if 0 <= val <= 100:
-            return val
-    if text.strip().upper().startswith("N/A"):
-        return None  # e.g. "N/A (RBI Table 11 ...)": the 11 is a table number, not a rate
-    for m in re.finditer(r"\d+", text):
-        val = float(m.group(0))
-        if 0 <= val <= 100:
-            return val
-    return None
-
-
-def year_key(raw_year):
-    """'2011 (as of Mar-2011)' -> 2011, '2026 (YTD, ...)' -> 2026"""
-    m = re.match(r"\s*(\d{4})", raw_year)
-    return int(m.group(1)) if m else None
-
 
 def interpolate_gaps(series):
     """Fill None values in a {year: rate} dict via linear interpolation
@@ -129,13 +95,15 @@ def month_range(start_ym, end_ym):
 
 def load_inflation():
     """Annual CPI inflation %, only from the TradeEntry API series
-    CPI_India_Annual (1996-2025). {year: rate %}. The API has no 2026 value, so 2026
+    CPI_India_Annual (1996-2025; 1995 repeats 1996). {year: rate %}. The API has no 2026 value, so 2026
     repeats the 2025 rate (carried forward)."""
     from datetime import date
     rates = {int(d[:4]): v for d, v in api_data.economic_series("CPI_India_Annual").items()}
     # The API has no value for the current year yet: the latest year's rate is carried
     # forward (at least one year, and up to the current year). Only the Monthly view
     # uses it (the December-only view needs a finished year).
+    # The API starts in 1996, so 1995 (the first year of returns) repeats the 1996 rate.
+    rates[min(rates) - 1] = rates[min(rates)]
     latest = max(rates)
     for y in range(latest + 1, max(latest + 1, date.today().year) + 1):
         rates[y] = rates[latest]
@@ -144,9 +112,8 @@ def load_inflation():
 
 def load_fd_rates():
     """Annual FD rate used for the Sharpe risk-free rate: the SBI 1-2yr year-end
-    rate from the TradeEntry API (1999-2011, 2019, 2023-2025), with the missing
-    years filled by linear interpolation between the nearest known years (years
-    before 1999 take the first value, 9.00%). {year: rate %}"""
+    rate from the TradeEntry API (every year 1994-2025; a gap would be filled by
+    linear interpolation, and years after the last value take it). {year: rate %}"""
     from datetime import date
     sbi = load_sbi_fd_rates()
     last = max(max(sbi) + 1, date.today().year)      # years after the last value take that value
@@ -194,14 +161,12 @@ def load_sbi_fd_rates():
     return {int(d[:4]): v for d, v in api_data.economic_series("in_fixed_deposit_rate").items()}
 
 
-# NIFTY Composite G-sec Index (1000 at 2011-01-03) x 1.504 = the FD Index level
-# of 2010 (1504), so the Bonds series has no jump at the 2011 switch.
-GSEC_SCALE = 1.504
-
-
 def by_year_close(series, y, m):
     """Close of the last date in month m of year y in a {'YYYY-MM-DD': value} series."""
     return series[max(d for d in series if d.startswith(f"{y}-{m:02d}"))]
+
+
+LAST_FD_YEAR = 2014      # the SBI FD rate up to here, the G-sec index from the next year
 
 
 def load_bonds_monthly_returns():
@@ -225,30 +190,24 @@ def bonds_monthly_returns(sbi, gsec):
 
     Bonds earn their return once a year: the whole year's return is booked in
     December and the other months are 0% (the value stays flat during the year).
-      1996-2011: that year's SBI 1-2yr FD year-end rate (1999-2011); the SBI
-                 series' first value (9.00%) is applied to 1996-1998.
-      2012-2014: the 2011 SBI rate (9.25%) is applied (no data for those years).
+      1995-2014: that year's SBI 1-2yr FD year-end rate (the API series starts at the end of 1994).
       2015 on:   the G-sec index: December close over the previous December close.
                  The index starts on 2015-10-13, so 2015 runs from that first close
                  to the December close. The current, unfinished year is booked in the
                  last complete month (from the last December close to that month)."""
-    first_year, last_sbi = min(sbi), 2011
-
-    def fd_rate(y):
-        return sbi[min(max(y, first_year), last_sbi)]
+    last = last_complete_month(gsec)
+    rets = {}
 
     def book(year, months, annual):
         for m in range(1, months + 1):
             rets[(year, m)] = annual if m == months else 0.0
 
-    rets = {}
-    for y in range(1996, 2015):
-        book(y, 12, fd_rate(y) / 100)
+    for y in range(1995, LAST_FD_YEAR + 1):
+        book(y, 12, sbi[y] / 100)
 
     by_year = {}
     for date in sorted(gsec):
         by_year.setdefault(int(date[:4]), []).append(gsec[date])
-    last = last_complete_month(gsec)
     prev = by_year[2015][0]
     y = 2015
     while (y, 12) <= last:                     # every finished year
@@ -330,8 +289,8 @@ def load_gold_monthly():
     {(year, month): price}, all from the
     TradeEntry API:
       - 2005-06 onward: MCX Gold spot month-end close / 10 (INR per 10g -> per gram).
-      - 1995-12 .. 2005-05: the month-end close of the global GOLDINR series
-        (1995-12 is where the money goes in), multiplied by a matching factor
+      - 1994-12 .. 2005-05: the month-end close of the global GOLDINR series
+        (1994-12 is where the money goes in), multiplied by a matching factor
         (MCX / GOLDINR on the last trading day of 2005-06) so the series joins
         MCX with no jump."""
     mcx = load_mcx_daily()
@@ -342,7 +301,7 @@ def load_gold_monthly():
     factor = mcx[join_date] / goldinr[max(d for d in goldinr if d[:7] == "2005-06")]
 
     levels = {ym: close / 10.0 * factor
-              for ym, close in api_data.month_end_levels(goldinr).items() if (1995, 12) <= ym < join}
+              for ym, close in api_data.month_end_levels(goldinr).items() if (1994, 12) <= ym < join}
     for ym, price in mcx_levels.items():
         if ym >= join:
             levels[ym] = price / 10.0
@@ -385,9 +344,9 @@ def load_all_data():
     """Load and pre-process every data source once. Pass the result into
     simulate() as many times as needed (e.g. for benchmark comparisons)
     without re-parsing the CSVs on every call."""
-    # The backtest starts in 1996: money goes in at the Dec-1995 month-end close.
-    nifty_level = {k: v for k, v in load_nifty_monthly().items() if k >= (1995, 12)}
-    gold_level = {k: v for k, v in load_gold_monthly().items() if k >= (1995, 12)}
+    # The backtest starts in 1995: money goes in at the Dec-1994 month-end close.
+    nifty_level = {k: v for k, v in load_nifty_monthly().items() if k >= (1994, 12)}
+    gold_level = {k: v for k, v in load_gold_monthly().items() if k >= (1994, 12)}
     midcap_level = load_midcap_monthly()
     smallcap_level = load_smallcap_monthly()
     return {
@@ -746,8 +705,8 @@ def main():
                     help="Nifty Midcap allocation %% (NIFTY Midcap 150 month-end level, live from the TradeEntry API)")
     p.add_argument("--smallcap", type=float, default=0,
                     help="Nifty Smallcap allocation %% (NIFTY Smallcap 250 month-end level, live from the TradeEntry API)")
-    p.add_argument("--start", type=str, default="1996",
-                    help="Start period, 'YYYY' or 'YYYY-MM' (default 1996; data begins 1996-01)")
+    p.add_argument("--start", type=str, default="1995",
+                    help="Start period, 'YYYY' or 'YYYY-MM' (default 1995; data begins 1995-01)")
     p.add_argument("--end", type=str, default="2025",
                     help="End period, 'YYYY' or 'YYYY-MM' (e.g. 2025-07)")
     p.add_argument("--rebalance", action="store_true",

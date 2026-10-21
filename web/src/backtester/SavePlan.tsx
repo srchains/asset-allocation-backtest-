@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ApiError, createAllocation } from "./api";
 
 /** "Save as plan" under the Allocation sliders: stores the current weights as a custom
- *  allocation, so it shows up in the Backtester and on the Saved plans tab. */
+ *  allocation, so it shows up under Open plan and in the Comparison chart. */
 export default function SavePlan({ weights, onSaved }: {
   weights: { NIFTY: number; GOLD: number; BOND: number; CASH: number };
   onSaved?: (id: string) => void;
@@ -18,7 +18,7 @@ export default function SavePlan({ weights, onSaved }: {
     try {
       const w = Object.fromEntries(Object.entries(weights).filter(([, v]) => v > 0));
       const a = await createAllocation(name, w);
-      setMsg({ ok: true, text: `Saved "${a.name}". See it on the Saved plans tab or in the Backtester.` });
+      setMsg({ ok: true, text: `Saved "${a.name}". Open it any time with Open plan, or tick it in the Comparison chart.` });
       setName("");
       setOpen(false);
       onSaved?.(a.id);

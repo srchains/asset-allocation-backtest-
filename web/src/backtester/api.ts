@@ -20,7 +20,7 @@ export interface Allocation {
   updated_at?: string;
 }
 
-export type Rebalance = "none" | "monthly" | "quarterly" | "yearly";
+export type Rebalance = "none" | "monthly" | "quarterly" | "halfyearly" | "yearly";
 
 export interface CalendarYear {
   year: number;

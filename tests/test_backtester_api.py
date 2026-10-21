@@ -1,28 +1,19 @@
 """API tests for the backtester endpoints (allocations + portfolio backtest).
 The store points at a temp file and the daily prices are synthetic, so no API token is needed."""
-import os
 import sys
-from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
+
+from _helpers import weekdays as _weekdays
 from fastapi.testclient import TestClient
 
 import server
 import daily_data
 from allocation_store import AllocationStore, PREDEFINED
 from daily_data import DailySeries
-
-
-def _weekdays(start, end):
-    d, out = date.fromisoformat(start), []
-    while d <= date.fromisoformat(end):
-        if d.weekday() < 5:
-            out.append(d.isoformat())
-        d += timedelta(days=1)
-    return out
 
 
 @pytest.fixture

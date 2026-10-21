@@ -14,16 +14,6 @@ export function Card({ title, action, children, note }: { title: string; action?
   );
 }
 
-export function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
-  return (
-    <div className="rounded-xl border border-border bg-panel px-4 py-3.5">
-      <div className="mb-1.5 text-sm text-fg-muted">{label}</div>
-      <div className={`text-xl font-semibold tabular-nums ${tone === "good" ? "text-bonds" : tone === "bad" ? "text-danger" : "text-fg"}`}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-fg-muted">{sub}</div>}
-    </div>
-  );
-}
-
 export function ErrorBox({ errors }: { errors: string[] }) {
   if (!errors.length) return null;
   return (
